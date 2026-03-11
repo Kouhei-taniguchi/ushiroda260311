@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>見積書作成アプリ - 株式会社 後田建築</title>
+    <link rel="stylesheet" href="styles.css?v=3">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+    <script src="logo.js?v=2"></script>
+    <script src="font.js?v=2"></script>
+</head>
+<body>
+    <div id="app">
+        <!-- ヘッダー -->
+        <header class="app-header">
+            <h1>見積書作成アプリ</h1>
+            <p class="company-name">株式会社 後田建築</p>
+        </header>
+
+        <!-- タブナビゲーション -->
+        <nav class="tab-nav">
+            <button class="tab-btn active" data-tab="create">見積書作成</button>
+            <button class="tab-btn" data-tab="history">履歴</button>
+            <button class="tab-btn" data-tab="master">マスタ管理</button>
+        </nav>
+
+        <!-- 見積書作成タブ -->
+        <div id="tab-create" class="tab-content active">
+            <div class="form-section">
+                <h2>見積書情報</h2>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="invoiceDate">見積日</label>
+                        <input type="date" id="invoiceDate">
+                    </div>
+                    <div class="form-group">
+                        <label for="invoiceNo">見積書番号</label>
+                        <input type="text" id="invoiceNo" placeholder="自動採番">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="clientName">見積先</label>
+                        <input type="text" id="clientName" placeholder="見積先名を入力">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="remarks">備考</label>
+                    <textarea id="remarks" rows="2" placeholder="備考を入力"></textarea>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <h2>工事選択</h2>
+                <div class="form-row">
+                    <div class="form-group" style="flex:2">
+                        <label for="constructionSelect">工事名</label>
+                        <select id="constructionSelect">
+                            <option value="">-- 工事を選択 --</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="flex:0 0 auto; align-self: flex-end;">
+                        <button id="addManualItemBtn" class="btn btn-secondary">自由入力行を追加</button>
+                    </div>
+                    <div class="form-group" style="flex:0 0 auto; align-self: flex-end;">
+                        <button id="addConstructionBtn" class="btn btn-primary">品目を追加</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <h2>明細</h2>
+                <div class="table-wrapper">
+                    <table id="itemsTable">
+                        <thead>
+                            <tr>
+                                <th class="col-no">No</th>
+                                <th class="col-construction">工事名</th>
+                                <th class="col-product">品名</th>
+                                <th class="col-unit-price">単価</th>
+                                <th class="col-unit">単位</th>
+                                <th class="col-quantity">数量</th>
+                                <th class="col-amount">金額</th>
+                                <th class="col-action">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="itemsBody">
+                        </tbody>
+                    </table>
+                </div>
+                <div class="totals">
+                    <div class="total-row">
+                        <span>小計</span>
+                        <span id="subtotal">¥0</span>
+                    </div>
+                    <div class="total-row">
+                        <span>消費税 (10%)</span>
+                        <span id="tax">¥0</span>
+                    </div>
+                    <div class="total-row total-grand">
+                        <span>合計</span>
+                        <span id="grandTotal">¥0</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="actions">
+                <button id="previewBtn" class="btn btn-secondary">プレビュー</button>
+                <button id="exportPdfBtn" class="btn btn-primary">PDF出力</button>
+                <button id="clearBtn" class="btn btn-danger">クリア</button>
+            </div>
+        </div>
+
+        <!-- 履歴タブ -->
+        <div id="tab-history" class="tab-content">
+            <div class="form-section">
+                <h2>見積書履歴</h2>
+                <div class="history-controls">
+                    <input type="text" id="historySearch" placeholder="見積先名・見積書番号で検索">
+                </div>
+                <div class="table-wrapper">
+                    <table id="historyTable">
+                        <thead>
+                            <tr>
+                                <th>見積書番号</th>
+                                <th>見積日</th>
+                                <th>見積先</th>
+                                <th>合計金額</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="historyBody">
+                        </tbody>
+                    </table>
+                </div>
+                <p id="noHistoryMsg" class="no-data-msg">見積書履歴がありません</p>
+            </div>
+        </div>
+
+        <!-- マスタ管理タブ -->
+        <div id="tab-master" class="tab-content">
+            <div class="form-section">
+                <h2>マスタ管理</h2>
+                <div class="master-upload">
+                    <p>Excelファイル（.xlsx）を取り込んでマスタを更新します。</p>
+                    <p class="hint">形式: 工事名 | 品名 | 単価 | 単位（ヘッダー行あり）</p>
+                    <div class="upload-area" id="uploadArea">
+                        <input type="file" id="masterFile" accept=".xlsx,.xls" hidden>
+                        <button id="uploadBtn" class="btn btn-primary">Excelファイルを選択</button>
+                        <span id="uploadFileName"></span>
+                    </div>
+                </div>
+                <div class="master-preview">
+                    <h3>現在のマスタデータ</h3>
+                    <div class="master-filter">
+                        <select id="masterFilterConstruction">
+                            <option value="">-- 全て表示 --</option>
+                        </select>
+                    </div>
+                    <div class="table-wrapper">
+                        <table id="masterTable">
+                            <thead>
+                                <tr>
+                                    <th>工事名</th>
+                                    <th>品名</th>
+                                    <th>単価</th>
+                                    <th>単位</th>
+                                </tr>
+                            </thead>
+                            <tbody id="masterBody">
+                            </tbody>
+                        </table>
+                    </div>
+                    <p id="noMasterMsg" class="no-data-msg">マスタデータがありません。Excelファイルを取り込んでください。</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- プレビューモーダル -->
+        <div id="previewModal" class="modal">
+            <div class="modal-content modal-large">
+                <div class="modal-header">
+                    <h2>見積書プレビュー</h2>
+                    <button class="modal-close" id="closePreview">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div id="invoicePreview"></div>
+                </div>
+                <div class="modal-footer">
+                    <button id="modalExportBtn" class="btn btn-primary">PDF出力</button>
+                    <button id="modalCloseBtn" class="btn btn-secondary">閉じる</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js?v=6"></script>
+</body>
+</html>
